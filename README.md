@@ -12,7 +12,10 @@ A desktop tool to capture and save SWF and other assets from websites using thre
 - Settings persistence to a user profile path
 
 ## Settings
-All settings are bound to the UI and persisted at `~/.swf_downloader/settings.json` (`python-app/app.py:747`).
+All settings are bound to the UI and persisted at `~/.swf_downloader/settings.json` (`python-app/app.py:747`). The UI is organized into tabs:
+
+- Main → Capture, Filters, Advanced (`python-app/app.py:52–73`)
+- Logs (separate tab for output) (`python-app/app.py:44–52`)
 
 - `URL` — Target page to navigate or domain to restrict (`python-app/app.py:34`).
 - `Save to` — Destination folder for downloaded files (`python-app/app.py:38`).
@@ -30,7 +33,8 @@ All settings are bound to the UI and persisted at `~/.swf_downloader/settings.js
 - `Content-Types (comma)` — Allowed content-type substrings (e.g. `application/x-shockwave-flash`) (`python-app/app.py:77–79`).
 - `Host includes (comma)` — Allowed hosts or parent domains; match exact or subdomain; `*` wildcard (`python-app/app.py:80–83`).
 - `Host excludes (comma)` — Blocked hosts or parent domains (`python-app/app.py:83–86`).
-- `Mirror URL path into folders` — Create nested folders per host/path (`python-app/app.py:87–91`).
+- `Mirror URL path into folders` — Create nested folders per host/path (`python-app/app.py:112–124`).
+- `Save all via Proxy` — In Proxy mode, save all response bodies routed through the proxy (`python-app/app.py:122–123`).
 
 Saved keys (for reference): `url`, `dir`, `domain_only`, `capture_mode`, `browser_engine`, `edge_path`, `ruffle_enable`, `ruffle_path`, `includes`, `excludes`, `ct_includes`, `host_includes`, `host_excludes`, `mirror`, `cdp_port` (`python-app/app.py:752–769`).
 
@@ -42,6 +46,7 @@ Saved keys (for reference): `url`, `dir`, `domain_only`, `capture_mode`, `browse
 - `Launch Edge (CDP)` — Launch Edge with `--remote-debugging-port` (`python-app/app.py:92–93`, logic `python-app/app.py:289`).
 - `Launch Edge (CDP auto)` — Launch Edge with auto-assigned CDP port (`python-app/app.py:100`, logic `python-app/app.py:321`).
 - `Attach Now (CDP)` — Attach immediately to an active Edge CDP session (`python-app/app.py:101`, logic `python-app/app.py:328`).
+- `Start Proxy Only` — Start the proxy capture without launching a browser (`python-app/app.py:104–110`, logic `python-app/app.py:497`).
 - `Verify CDP` — Attempt to connect to CDP endpoints and report status (`python-app/app.py:98–99`, logic `python-app/app.py:628`).
 - `Kill Edge` — Force-terminate `msedge.exe` processes (`python-app/app.py:97–98`, logic `python-app/app.py:614`).
 - `Import HAR` — Import `.har` or `.json` and save matching assets (`python-app/app.py:95–96`, dialog `python-app/app.py:142`).
@@ -54,9 +59,10 @@ Saved keys (for reference): `url`, `dir`, `domain_only`, `capture_mode`, `browse
   - Ruffle extension support and demo verification (`python-app/app.py:452–473`).
   - Filtering by host includes/excludes, domain restriction, URL/content-disposition/content-type (`python-app/app.py:495–549`).
   - Optional mirroring to `Save to/host/path/...` (`python-app/app.py:570–579`).
-- Proxy (mitmproxy) — Start mitmproxy with addon script and launch system Edge with proxy (`python-app/app.py:802–840`).
-  - Addon script `python-app/mitm_swf.py` enforces host filters and match rules (`python-app/mitm_swf.py:11–48`).
-  - Edge launched with `--proxy-server=127.0.0.1:8888` (`python-app/app.py:802–839`).
+- Proxy (mitmproxy) — Start mitmproxy with addon script; optionally launch Edge with proxy (`python-app/app.py:802–840`).
+  - Addon script `python-app/mitm_swf.py` enforces host filters and match rules; supports `Save all via Proxy` (`python-app/mitm_swf.py:10–43`).
+  - Edge launched with `--proxy-server=127.0.0.1:8888` when engine is Edge (`python-app/app.py:830–844`).
+  - Proxy receives settings via environment: `SWF_OUTDIR`, `SWF_HOST`, `SWF_HOST_INCLUDES`, `SWF_HOST_EXCLUDES`, `SWF_INCLUDES`, `SWF_EXCLUDES`, `SWF_CT_INCLUDES`, `SWF_MIRROR`, `SWF_SAVE_ALL` (`python-app/app.py:816–826`, `python-app/mitm_swf.py:145–164`).
 - Connect (Edge CDP) — Attach to an existing Edge remote debugging session (`python-app/app.py:1055–1260`).
   - Prefers `DevToolsActivePort` auto-detected profile path; falls back to `host:port` (`python-app/app.py:1078–1150`).
   - Filtering and saving logic mirrors Browser mode (`python-app/app.py:1149–1229`).
@@ -67,7 +73,7 @@ Saved keys (for reference): `url`, `dir`, `domain_only`, `capture_mode`, `browse
 - Include filters — Tokens matched in URL or `content-disposition`; `*` wildcard (`python-app/app.py:529–538`).
 - Exclude filters — Tokens matched in URL, `content-type`, or `content-disposition` (`python-app/app.py:544–548`).
 - Content-Types — Require any token to be present in `content-type` (`python-app/app.py:540–543`).
-- Signature fallback — If filters don’t hit, detect SWF via body signature `FWS/CWS/ZWS` (`python-app/app.py:551–557`, `python-app/app.py:1196–1201`).
+- Signature fallback — If filters don’t hit, detect SWF via body signature `FWS/CWS/ZWS` (`python-app/app.py:551–557`, `python-app/app.py:1196–1201`). In Proxy mode, when the URL path is generic, the addon attempts to derive SWF filename from query parameters (e.g. `gamemovie=...swf`) (`python-app/mitm_swf.py:84–100`).
 
 ## Importers
 - HAR — Parses entries, applies filters, decodes response body, saves output (`python-app/app.py:896–940`).
@@ -127,3 +133,8 @@ Saved keys (for reference): `url`, `dir`, `domain_only`, `capture_mode`, `browse
 - When `Restrict to entered domain` is on, domain restriction applies before other filters.
 - Use `*` in `Host includes` to allow all hosts while using other filters.
 
+### HTTPS Decryption
+- Install the proxy CA to enable HTTPS body capture:
+  - Open `http://mitm.it` in a proxied browser and follow the platform instructions.
+  - On Windows, you can also run: `certutil.exe -addstore root mitmproxy-ca-cert.cer` to add it to Trusted Root.
+  - After installation, the app’s proxy status banner updates (see `update_proxy_status` in `python-app/app.py:483`).

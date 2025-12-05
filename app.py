@@ -22,71 +22,65 @@ class SwfDownloaderApp:
     def __init__(self, root):
         self.root = root
         self.root.title("SWF Downloader")
+        try:
+            style = ttk.Style()
+            for theme in ("vista", "xpnative", "clam"):
+                try:
+                    style.theme_use(theme)
+                    break
+                except Exception:
+                    continue
+            style.configure("TButton", padding=6)
+            style.configure("TLabel", padding=2)
+            style.configure("TEntry", padding=4)
+            style.configure("TLabelframe", padding=8)
+        except Exception:
+            pass
         self.url_var = tk.StringVar()
         self.dir_var = tk.StringVar()
         self.running = False
         self.stop_event = threading.Event()
         self.thread = None
-        frm = ttk.Frame(root, padding=10)
-        frm.grid(sticky="nsew")
+        nb = ttk.Notebook(root)
+        nb.grid(sticky="nsew")
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
-        ttk.Label(frm, text="URL").grid(row=0, column=0, sticky="w")
-        url_entry = ttk.Entry(frm, textvariable=self.url_var)
-        url_entry.grid(row=1, column=0, columnspan=3, sticky="ew")
+        frm = ttk.Frame(nb, padding=10)
+        nb.add(frm, text="Main")
+        logs_tab = ttk.Frame(nb)
+        nb.add(logs_tab, text="Logs")
+        sub_nb = ttk.Notebook(frm)
+        sub_nb.grid(row=0, column=0, columnspan=3, sticky="nsew")
         frm.columnconfigure(0, weight=1)
-        ttk.Label(frm, text="Save to").grid(row=2, column=0, sticky="w")
-        dir_entry = ttk.Entry(frm, textvariable=self.dir_var)
+        frm.rowconfigure(0, weight=1)
+        capture_tab = ttk.Frame(sub_nb, padding=8)
+        filters_tab = ttk.Frame(sub_nb, padding=8)
+        advanced_tab = ttk.Frame(sub_nb, padding=8)
+        sub_nb.add(capture_tab, text="Capture")
+        sub_nb.add(filters_tab, text="Filters")
+        sub_nb.add(advanced_tab, text="Advanced")
+        ttk.Label(capture_tab, text="URL").grid(row=0, column=0, sticky="w")
+        url_entry = ttk.Entry(capture_tab, textvariable=self.url_var)
+        url_entry.grid(row=1, column=0, columnspan=3, sticky="ew")
+        capture_tab.columnconfigure(0, weight=1)
+        ttk.Label(capture_tab, text="Save to").grid(row=2, column=0, sticky="w")
+        dir_entry = ttk.Entry(capture_tab, textvariable=self.dir_var)
         dir_entry.grid(row=3, column=0, sticky="ew")
-        ttk.Button(frm, text="Browse", command=self.choose_dir).grid(row=3, column=1, sticky="ew")
+        ttk.Button(capture_tab, text="Browse", command=self.choose_dir).grid(row=3, column=1, sticky="ew")
         self.domain_only_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(frm, text="Restrict to entered domain", variable=self.domain_only_var).grid(row=4, column=0, sticky="w")
-        ttk.Label(frm, text="Capture mode").grid(row=4, column=1, sticky="w")
+        ttk.Checkbutton(capture_tab, text="Restrict to entered domain", variable=self.domain_only_var).grid(row=4, column=0, sticky="w")
+        ttk.Label(capture_tab, text="Capture mode").grid(row=4, column=1, sticky="w")
         self.capture_mode = tk.StringVar(value="playwright")
-        ttk.Radiobutton(frm, text="Browser", variable=self.capture_mode, value="playwright").grid(row=5, column=0, sticky="w")
-        ttk.Radiobutton(frm, text="Proxy (system Edge)", variable=self.capture_mode, value="proxy").grid(row=5, column=1, sticky="w")
-        ttk.Radiobutton(frm, text="Connect (Edge CDP)", variable=self.capture_mode, value="cdp").grid(row=5, column=2, sticky="w")
-        ttk.Label(frm, text="Browser engine").grid(row=6, column=0, sticky="w")
+        ttk.Radiobutton(capture_tab, text="Browser", variable=self.capture_mode, value="playwright").grid(row=5, column=0, sticky="w")
+        ttk.Radiobutton(capture_tab, text="Proxy (system Edge)", variable=self.capture_mode, value="proxy").grid(row=5, column=1, sticky="w")
+        ttk.Radiobutton(capture_tab, text="Connect (Edge CDP)", variable=self.capture_mode, value="cdp").grid(row=5, column=2, sticky="w")
+        ttk.Label(capture_tab, text="Browser engine").grid(row=6, column=0, sticky="w")
         self.browser_engine = tk.StringVar(value="edge")
-        ttk.Radiobutton(frm, text="Chromium", variable=self.browser_engine, value="chromium").grid(row=6, column=1, sticky="w")
-        ttk.Radiobutton(frm, text="Edge (msedge)", variable=self.browser_engine, value="edge").grid(row=6, column=2, sticky="w")
-        ttk.Radiobutton(frm, text="Pale Moon", variable=self.browser_engine, value="palemoon").grid(row=6, column=3, sticky="w")
-        ttk.Label(frm, text="Edge executable").grid(row=7, column=0, sticky="w")
-        self.edge_path_var = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=self.edge_path_var).grid(row=7, column=1, sticky="ew")
-        ttk.Button(frm, text="Browse", command=lambda: self._choose_file(self.edge_path_var)).grid(row=7, column=2, sticky="ew")
-        ttk.Label(frm, text="CDP port").grid(row=7, column=3, sticky="w")
-        self.cdp_port_var = tk.StringVar(value="9222")
-        ttk.Entry(frm, textvariable=self.cdp_port_var, width=8).grid(row=7, column=4, sticky="w")
-        self.ruffle_enable_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frm, text="Enable Ruffle extension (Browser mode)", variable=self.ruffle_enable_var).grid(row=8, column=0, sticky="w")
-        ttk.Label(frm, text="Ruffle extension folder").grid(row=9, column=0, sticky="w")
-        self.ruffle_path_var = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=self.ruffle_path_var).grid(row=9, column=1, sticky="ew")
-        ttk.Button(frm, text="Browse", command=lambda: self._choose_dir(self.ruffle_path_var)).grid(row=9, column=2, sticky="ew")
-        self.ruffle_verify_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frm, text="Verify Ruffle (demo) before URL", variable=self.ruffle_verify_var).grid(row=9, column=3, sticky="w")
-        self.ruffle_require_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frm, text="Require Ruffle to start", variable=self.ruffle_require_var).grid(row=10, column=0, sticky="w")
-        ttk.Label(frm, text="Include filters (comma)").grid(row=10, column=0, sticky="w")
-        self.includes_var = tk.StringVar(value=".swf")
-        ttk.Entry(frm, textvariable=self.includes_var).grid(row=10, column=1, columnspan=2, sticky="ew")
-        ttk.Label(frm, text="Exclude filters (comma)").grid(row=11, column=0, sticky="w")
-        self.excludes_var = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=self.excludes_var).grid(row=11, column=1, columnspan=2, sticky="ew")
-        ttk.Label(frm, text="Content-Types (comma)").grid(row=12, column=0, sticky="w")
-        self.ct_includes_var = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=self.ct_includes_var).grid(row=12, column=1, columnspan=2, sticky="ew")
-        ttk.Label(frm, text="Host includes (comma)").grid(row=13, column=0, sticky="w")
-        self.host_includes_var = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=self.host_includes_var).grid(row=13, column=1, columnspan=2, sticky="ew")
-        ttk.Label(frm, text="Host excludes (comma)").grid(row=14, column=0, sticky="w")
-        self.host_excludes_var = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=self.host_excludes_var).grid(row=14, column=1, columnspan=2, sticky="ew")
-        self.mirror_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(frm, text="Mirror URL path into folders", variable=self.mirror_var).grid(row=15, column=0, sticky="w")
-        btn_frame = ttk.Frame(frm)
-        btn_frame.grid(row=16, column=0, columnspan=3, pady=8, sticky="ew")
+        ttk.Radiobutton(capture_tab, text="Chromium", variable=self.browser_engine, value="chromium").grid(row=6, column=1, sticky="w")
+        ttk.Radiobutton(capture_tab, text="Edge (msedge)", variable=self.browser_engine, value="edge").grid(row=6, column=2, sticky="w")
+        ttk.Radiobutton(capture_tab, text="Pale Moon", variable=self.browser_engine, value="palemoon").grid(row=6, column=3, sticky="w")
+        btn_frame = ttk.Frame(capture_tab)
+        btn_frame.grid(row=7, column=0, columnspan=4, pady=8, sticky="ew")
         self.start_btn = ttk.Button(btn_frame, text="Start", command=self.start)
         self.start_btn.grid(row=0, column=0, padx=4)
         self.stop_btn = ttk.Button(btn_frame, text="Stop", command=self.stop, state=tk.DISABLED)
@@ -105,14 +99,67 @@ class SwfDownloaderApp:
         ttk.Button(btn_frame, text="Check Edge Policy", command=self.check_edge_policy).grid(row=0, column=11, padx=4)
         ttk.Button(btn_frame, text="Launch Edge (CDP auto)", command=self.launch_edge_cdp_auto).grid(row=0, column=12, padx=4)
         ttk.Button(btn_frame, text="Attach Now (CDP)", command=self.attach_now_cdp).grid(row=0, column=13, padx=4)
-        self.log = ScrolledText(frm, height=16)
-        self.log.grid(row=17, column=0, columnspan=3, sticky="nsew")
-        frm.rowconfigure(17, weight=1)
+        ttk.Button(btn_frame, text="Start Proxy Only", command=self.start_proxy_only).grid(row=0, column=14, padx=4)
+        self.proxy_status_var = tk.StringVar(value="")
+        ttk.Label(btn_frame, textvariable=self.proxy_status_var).grid(row=1, column=0, columnspan=15, sticky="w")
+        ttk.Label(filters_tab, text="Include filters (comma)").grid(row=0, column=0, sticky="w")
+        self.includes_var = tk.StringVar(value=".swf")
+        ttk.Entry(filters_tab, textvariable=self.includes_var).grid(row=0, column=1, columnspan=2, sticky="ew")
+        ttk.Label(filters_tab, text="Exclude filters (comma)").grid(row=1, column=0, sticky="w")
+        self.excludes_var = tk.StringVar(value="")
+        ttk.Entry(filters_tab, textvariable=self.excludes_var).grid(row=1, column=1, columnspan=2, sticky="ew")
+        ttk.Label(filters_tab, text="Content-Types (comma)").grid(row=2, column=0, sticky="w")
+        self.ct_includes_var = tk.StringVar(value="")
+        ttk.Entry(filters_tab, textvariable=self.ct_includes_var).grid(row=2, column=1, columnspan=2, sticky="ew")
+        ttk.Label(filters_tab, text="Host includes (comma)").grid(row=3, column=0, sticky="w")
+        self.host_includes_var = tk.StringVar(value="")
+        ttk.Entry(filters_tab, textvariable=self.host_includes_var).grid(row=3, column=1, columnspan=2, sticky="ew")
+        ttk.Label(filters_tab, text="Host excludes (comma)").grid(row=4, column=0, sticky="w")
+        self.host_excludes_var = tk.StringVar(value="")
+        ttk.Entry(filters_tab, textvariable=self.host_excludes_var).grid(row=4, column=1, columnspan=2, sticky="ew")
+        self.mirror_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(filters_tab, text="Mirror URL path into folders", variable=self.mirror_var).grid(row=5, column=0, sticky="w")
+        self.proxy_save_all_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(filters_tab, text="Save all via Proxy", variable=self.proxy_save_all_var).grid(row=6, column=0, sticky="w")
+        filters_tab.columnconfigure(1, weight=1)
+        ttk.Label(advanced_tab, text="Edge executable").grid(row=0, column=0, sticky="w")
+        self.edge_path_var = tk.StringVar(value="")
+        ttk.Entry(advanced_tab, textvariable=self.edge_path_var).grid(row=0, column=1, sticky="ew")
+        ttk.Button(advanced_tab, text="Browse", command=lambda: self._choose_file(self.edge_path_var)).grid(row=0, column=2, sticky="ew")
+        ttk.Label(advanced_tab, text="CDP port").grid(row=1, column=0, sticky="w")
+        self.cdp_port_var = tk.StringVar(value="9222")
+        ttk.Entry(advanced_tab, textvariable=self.cdp_port_var, width=8).grid(row=1, column=1, sticky="w")
+        self.ruffle_enable_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(advanced_tab, text="Enable Ruffle extension (Browser mode)", variable=self.ruffle_enable_var).grid(row=2, column=0, sticky="w")
+        ttk.Label(advanced_tab, text="Ruffle extension folder").grid(row=3, column=0, sticky="w")
+        self.ruffle_path_var = tk.StringVar(value="")
+        ttk.Entry(advanced_tab, textvariable=self.ruffle_path_var).grid(row=3, column=1, sticky="ew")
+        ttk.Button(advanced_tab, text="Browse", command=lambda: self._choose_dir(self.ruffle_path_var)).grid(row=3, column=2, sticky="ew")
+        self.ruffle_verify_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(advanced_tab, text="Verify Ruffle (demo) before URL", variable=self.ruffle_verify_var).grid(row=4, column=0, sticky="w")
+        self.ruffle_require_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(advanced_tab, text="Require Ruffle to start", variable=self.ruffle_require_var).grid(row=5, column=0, sticky="w")
+        advanced_tab.columnconfigure(1, weight=1)
+        self.log = ScrolledText(logs_tab, height=18)
+        self.log.grid(row=0, column=0, columnspan=1, sticky="nsew")
+        logs_tab.columnconfigure(0, weight=1)
+        logs_tab.rowconfigure(0, weight=1)
+        self.status_var = tk.StringVar(value="Idle")
+        ttk.Separator(frm).grid(row=16, column=0, columnspan=3, sticky="ew", pady=4)
+        ttk.Label(frm, textvariable=self.status_var).grid(row=18, column=0, columnspan=3, sticky="ew")
         self.mitm_proc = None
         self.edge_proc = None
         self.cdp_profile_dir = None
         try:
             self.load_settings()
+        except Exception:
+            pass
+        try:
+            self.update_proxy_status()
+        except Exception:
+            pass
+        try:
+            self.update_status("Idle")
         except Exception:
             pass
 
@@ -199,6 +246,10 @@ class SwfDownloaderApp:
         host_includes = [x.strip().lower() for x in (self.host_includes_var.get() or "").split(',') if x.strip()]
         host_excludes = [x.strip().lower() for x in (self.host_excludes_var.get() or "").split(',') if x.strip()]
         mirror = self.mirror_var.get()
+        try:
+            self.update_status(f"Running {mode}…")
+        except Exception:
+            pass
         if mode == "proxy":
             engine = self.browser_engine.get()
             engine_path = ""
@@ -287,6 +338,10 @@ class SwfDownloaderApp:
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
         self.running = False
+        try:
+            self.update_status("Idle")
+        except Exception:
+            pass
 
     def launch_edge_cdp(self):
         try:
@@ -353,6 +408,10 @@ class SwfDownloaderApp:
                 daemon=True,
             )
             self.thread.start()
+            try:
+                self.update_status("Running cdp…")
+            except Exception:
+                pass
         except Exception as e:
             self.log_line(str(e))
 
@@ -379,7 +438,7 @@ class SwfDownloaderApp:
         try:
             mitmdump = shutil.which("mitmdump")
             if not mitmdump:
-            
+
                 self.log_line("Install mitmproxy: pip install mitmproxy")
                 return
             d, candidates = self._cert_candidates()
@@ -410,10 +469,62 @@ class SwfDownloaderApp:
                 r = subprocess.run([certutil, "-user", "-addstore", "Root", cert_path], capture_output=True, text=True)
                 if r.returncode == 0:
                     self.log_line("Certificate installed to user Trusted Root")
+                    try:
+                        self.update_proxy_status()
+                    except Exception:
+                        pass
                 else:
                     self.log_line(r.stdout.strip() or r.stderr.strip() or "Certificate install failed")
             except Exception as e:
                 self.log_line(str(e))
+        except Exception as e:
+            self.log_line(str(e))
+
+    def update_proxy_status(self):
+        d, candidates = self._cert_candidates()
+        present = any(os.path.exists(c) for c in candidates)
+        if present:
+            self.proxy_status_var.set("Proxy CA files present — HTTPS decryption enabled")
+        else:
+            self.proxy_status_var.set("Proxy CA missing — open http://mitm.it to install")
+
+    def update_status(self, text):
+        try:
+            self.status_var.set(text)
+        except Exception:
+            pass
+
+    def start_proxy_only(self):
+        try:
+            if self.running:
+                return
+            url = self.url_var.get().strip()
+            outdir = self.dir_var.get().strip()
+            if not outdir:
+                self.log_line("Choose a destination folder")
+                return
+            self.running = True
+            self.stop_event.clear()
+            self.start_btn.config(state=tk.DISABLED)
+            self.stop_btn.config(state=tk.NORMAL)
+            includes = [x.strip().lower() for x in (self.includes_var.get() or "").split(',') if x.strip()]
+            excludes = [x.strip().lower() for x in (self.excludes_var.get() or "").split(',') if x.strip()]
+            ct_includes = [x.strip().lower() for x in (self.ct_includes_var.get() or "").split(',') if x.strip()]
+            host_includes = [x.strip().lower() for x in (self.host_includes_var.get() or "").split(',') if x.strip()]
+            host_excludes = [x.strip().lower() for x in (self.host_excludes_var.get() or "").split(',') if x.strip()]
+            mirror = self.mirror_var.get()
+            engine = "none"
+            engine_path = ""
+            self.thread = threading.Thread(
+                target=self._run_proxy_capture,
+                args=(url, outdir, self.domain_only_var.get(), host_includes, host_excludes, includes, excludes, ct_includes, mirror, engine, engine_path),
+                daemon=True,
+            )
+            self.thread.start()
+            try:
+                self.update_proxy_status()
+            except Exception:
+                pass
         except Exception as e:
             self.log_line(str(e))
 
@@ -767,6 +878,7 @@ class SwfDownloaderApp:
             "host_includes": self.host_includes_var.get(),
             "host_excludes": self.host_excludes_var.get(),
             "mirror": bool(self.mirror_var.get()),
+            "proxy_save_all": bool(self.proxy_save_all_var.get()),
             "cdp_port": self.cdp_port_var.get(),
         }
         try:
@@ -794,6 +906,7 @@ class SwfDownloaderApp:
             self.host_includes_var.set(data.get("host_includes", ""))
             self.host_excludes_var.set(data.get("host_excludes", ""))
             self.mirror_var.set(bool(data.get("mirror", False)))
+            self.proxy_save_all_var.set(bool(data.get("proxy_save_all", False)))
             self.cdp_port_var.set(data.get("cdp_port", "9222"))
             self.log_line("Settings loaded")
         except FileNotFoundError:
@@ -821,6 +934,7 @@ class SwfDownloaderApp:
             env["SWF_EXCLUDES"] = ",".join(excludes)
             env["SWF_CT_INCLUDES"] = ",".join(ct_includes)
             env["SWF_MIRROR"] = ("1" if mirror else "0")
+            env["SWF_SAVE_ALL"] = ("1" if self.proxy_save_all_var.get() else "0")
             self.root.after(0, lambda: self.log_line(f"Starting proxy on 127.0.0.1:{port}"))
             self.mitm_proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, text=True, env=env)
             if engine == "edge":
