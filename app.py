@@ -14,6 +14,7 @@ import signal
 import time
 import json
 import winreg
+import csv
 
 def sanitize_name(name):
     return re.sub(r'[<>:"/\\|?*]', '_', name)
@@ -81,27 +82,37 @@ class SwfDownloaderApp:
         ttk.Radiobutton(capture_tab, text="Pale Moon", variable=self.browser_engine, value="palemoon").grid(row=6, column=3, sticky="w")
         btn_frame = ttk.Frame(capture_tab)
         btn_frame.grid(row=7, column=0, columnspan=4, pady=8, sticky="ew")
+        try:
+            for i in range(4):
+                btn_frame.columnconfigure(i, weight=1)
+        except Exception:
+            pass
         self.start_btn = ttk.Button(btn_frame, text="Start", command=self.start)
-        self.start_btn.grid(row=0, column=0, padx=4)
+        self.start_btn.grid(row=0, column=0, padx=4, sticky="ew")
         self.stop_btn = ttk.Button(btn_frame, text="Stop", command=self.stop, state=tk.DISABLED)
-        self.stop_btn.grid(row=0, column=1, padx=4)
+        self.stop_btn.grid(row=0, column=1, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Quick Start (Proxy + Save All)", command=self.quick_start_proxy).grid(row=0, column=2, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Start Proxy Only", command=self.start_proxy_only).grid(row=0, column=3, padx=4, sticky="ew")
+
+        ttk.Button(btn_frame, text="Open Output Folder", command=self.open_output_folder).grid(row=1, column=0, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Export Saved List", command=self.export_saved_list).grid(row=1, column=1, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Save settings", command=self.save_settings).grid(row=1, column=2, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Load settings", command=self.load_settings).grid(row=1, column=3, padx=4, sticky="ew")
+
         self.cert_btn = ttk.Button(btn_frame, text="Install proxy certificate", command=self.install_proxy_cert)
-        self.cert_btn.grid(row=0, column=2, padx=4)
+        self.cert_btn.grid(row=2, column=0, padx=4, sticky="ew")
         self.cert_open_btn = ttk.Button(btn_frame, text="Open cert folder", command=self.open_cert_folder)
-        self.cert_open_btn.grid(row=0, column=3, padx=4)
-        ttk.Button(btn_frame, text="Launch Edge (CDP)", command=self.launch_edge_cdp).grid(row=0, column=4, padx=4)
-        ttk.Button(btn_frame, text="Save settings", command=self.save_settings).grid(row=0, column=5, padx=4)
-        ttk.Button(btn_frame, text="Load settings", command=self.load_settings).grid(row=0, column=6, padx=4)
-        ttk.Button(btn_frame, text="Import HAR", command=self.import_har_dialog).grid(row=0, column=7, padx=4)
-        ttk.Button(btn_frame, text="Import SAZ", command=self.import_saz_dialog).grid(row=0, column=8, padx=4)
-        ttk.Button(btn_frame, text="Kill Edge", command=self.kill_edge_tasks).grid(row=0, column=9, padx=4)
-        ttk.Button(btn_frame, text="Verify CDP", command=self.verify_cdp).grid(row=0, column=10, padx=4)
-        ttk.Button(btn_frame, text="Check Edge Policy", command=self.check_edge_policy).grid(row=0, column=11, padx=4)
-        ttk.Button(btn_frame, text="Launch Edge (CDP auto)", command=self.launch_edge_cdp_auto).grid(row=0, column=12, padx=4)
-        ttk.Button(btn_frame, text="Attach Now (CDP)", command=self.attach_now_cdp).grid(row=0, column=13, padx=4)
-        ttk.Button(btn_frame, text="Start Proxy Only", command=self.start_proxy_only).grid(row=0, column=14, padx=4)
+        self.cert_open_btn.grid(row=2, column=1, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Launch Edge (CDP)", command=self.launch_edge_cdp).grid(row=2, column=2, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Launch Edge (CDP auto)", command=self.launch_edge_cdp_auto).grid(row=2, column=3, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Attach Now (CDP)", command=self.attach_now_cdp).grid(row=2, column=4, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Verify CDP", command=self.verify_cdp).grid(row=2, column=5, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Check Edge Policy", command=self.check_edge_policy).grid(row=2, column=6, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Kill Edge", command=self.kill_edge_tasks).grid(row=2, column=7, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Import HAR", command=self.import_har_dialog).grid(row=2, column=8, padx=4, sticky="ew")
+        ttk.Button(btn_frame, text="Import SAZ", command=self.import_saz_dialog).grid(row=2, column=9, padx=4, sticky="ew")
         self.proxy_status_var = tk.StringVar(value="")
-        ttk.Label(btn_frame, textvariable=self.proxy_status_var).grid(row=1, column=0, columnspan=15, sticky="w")
+        ttk.Label(btn_frame, textvariable=self.proxy_status_var).grid(row=3, column=0, columnspan=10, sticky="w")
         ttk.Label(filters_tab, text="Include filters (comma)").grid(row=0, column=0, sticky="w")
         self.includes_var = tk.StringVar(value=".swf")
         ttk.Entry(filters_tab, textvariable=self.includes_var).grid(row=0, column=1, columnspan=2, sticky="ew")
@@ -121,6 +132,7 @@ class SwfDownloaderApp:
         ttk.Checkbutton(filters_tab, text="Mirror URL path into folders", variable=self.mirror_var).grid(row=5, column=0, sticky="w")
         self.proxy_save_all_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(filters_tab, text="Save all via Proxy", variable=self.proxy_save_all_var).grid(row=6, column=0, sticky="w")
+        ttk.Button(filters_tab, text="Test Filter", command=self.test_filter_dialog).grid(row=6, column=2, sticky="e")
         filters_tab.columnconfigure(1, weight=1)
         ttk.Label(advanced_tab, text="Edge executable").grid(row=0, column=0, sticky="w")
         self.edge_path_var = tk.StringVar(value="")
@@ -140,13 +152,52 @@ class SwfDownloaderApp:
         self.ruffle_require_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(advanced_tab, text="Require Ruffle to start", variable=self.ruffle_require_var).grid(row=5, column=0, sticky="w")
         advanced_tab.columnconfigure(1, weight=1)
-        self.log = ScrolledText(logs_tab, height=18)
-        self.log.grid(row=0, column=0, columnspan=1, sticky="nsew")
+        toolbar = ttk.Frame(logs_tab)
+        toolbar.grid(row=0, column=0, sticky="ew", padx=0, pady=4)
+        self.search_var = tk.StringVar()
+        ttk.Label(toolbar, text="Search").grid(row=0, column=0, padx=4)
+        self.search_entry = ttk.Entry(toolbar, textvariable=self.search_var, width=30)
+        self.search_entry.grid(row=0, column=1, padx=4)
+        ttk.Button(toolbar, text="Apply", command=self.apply_file_filter).grid(row=0, column=2, padx=4)
+        ttk.Button(toolbar, text="Open", command=self.open_selected_file).grid(row=0, column=3, padx=4)
+        ttk.Button(toolbar, text="Reveal", command=self.reveal_selected_file).grid(row=0, column=4, padx=4)
+        ttk.Button(toolbar, text="Clear", command=self.clear_saved_files).grid(row=0, column=5, padx=4)
+        self.files_tree = ttk.Treeview(logs_tab, columns=("name","size","folder","time"), show="headings", height=10)
+        self.files_tree.heading("name", text="Name")
+        self.files_tree.heading("size", text="Size")
+        self.files_tree.heading("folder", text="Folder")
+        self.files_tree.heading("time", text="Time")
+        self.files_tree.column("name", width=220)
+        self.files_tree.column("size", width=80, anchor="e")
+        self.files_tree.column("folder", width=260)
+        self.files_tree.column("time", width=90, anchor="center")
+        self.files_tree.grid(row=1, column=0, sticky="nsew")
+        self.log = ScrolledText(logs_tab, height=10)
+        self.log.grid(row=2, column=0, columnspan=1, sticky="nsew")
         logs_tab.columnconfigure(0, weight=1)
-        logs_tab.rowconfigure(0, weight=1)
+        logs_tab.rowconfigure(1, weight=1)
+        logs_tab.rowconfigure(2, weight=1)
+        self.saved_count = 0
+        self.saved_files = []
+        self.files_saved_var = tk.StringVar(value="Files saved: 0")
         self.status_var = tk.StringVar(value="Idle")
         ttk.Separator(frm).grid(row=16, column=0, columnspan=3, sticky="ew", pady=4)
-        ttk.Label(frm, textvariable=self.status_var).grid(row=18, column=0, columnspan=3, sticky="ew")
+        status_bar = ttk.Frame(frm)
+        status_bar.grid(row=18, column=0, columnspan=3, sticky="ew")
+        status_bar.columnconfigure(0, weight=1)
+        ttk.Label(status_bar, textvariable=self.status_var).grid(row=0, column=0, sticky="w")
+        self.https_text_var = tk.StringVar(value="")
+        self.https_dot = tk.Label(status_bar, text="●")
+        self.https_dot.grid(row=0, column=1, padx=8)
+        ttk.Label(status_bar, textvariable=self.https_text_var).grid(row=0, column=2, sticky="w")
+        ttk.Label(status_bar, textvariable=self.files_saved_var).grid(row=0, column=3, sticky="e")
+
+        try:
+            self.root.bind("<Control-Return>", lambda e: self.start())
+            self.root.bind("<Control-period>", lambda e: self.stop())
+            self.root.bind("<Control-f>", lambda e: self.search_entry.focus_set())
+        except Exception:
+            pass
         self.mitm_proc = None
         self.edge_proc = None
         self.cdp_profile_dir = None
@@ -223,6 +274,100 @@ class SwfDownloaderApp:
     def log_line(self, msg):
         self.log.insert(tk.END, msg + "\n")
         self.log.see(tk.END)
+        try:
+            if msg.startswith("Saved "):
+                p = msg[7:].strip()
+                self._add_saved_file(p)
+        except Exception:
+            pass
+
+    def _add_saved_file(self, path):
+        try:
+            name = os.path.basename(path)
+            folder = os.path.dirname(path)
+            size = 0
+            try:
+                size = os.path.getsize(path)
+            except Exception:
+                size = 0
+            ts = time.strftime("%H:%M:%S")
+            self.saved_files.append({"path": path, "name": name, "folder": folder, "size": size, "time": ts})
+            self.files_tree.insert("", tk.END, values=(name, f"{size}", folder, ts))
+            self.saved_count += 1
+            self.files_saved_var.set(f"Files saved: {self.saved_count}")
+        except Exception:
+            pass
+
+    def apply_file_filter(self):
+        try:
+            q = (self.search_var.get() or "").strip().lower()
+            self.files_tree.delete(*self.files_tree.get_children())
+            for it in self.saved_files:
+                if not q or q in it["name"].lower() or q in it["folder"].lower():
+                    self.files_tree.insert("", tk.END, values=(it["name"], str(it["size"]), it["folder"], it["time"]))
+        except Exception:
+            pass
+
+    def open_output_folder(self):
+        try:
+            d = self.dir_var.get().strip()
+            if d:
+                os.startfile(d)
+        except Exception:
+            pass
+
+    def export_saved_list(self):
+        try:
+            if not self.saved_files:
+                return
+            fp = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv"), ("All", "*.*")])
+            if not fp:
+                return
+            with open(fp, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["name", "size", "folder", "time", "path"])
+                for it in self.saved_files:
+                    w.writerow([it.get("name",""), it.get("size",0), it.get("folder",""), it.get("time",""), it.get("path","")])
+            self.log_line(f"Saved list exported: {fp}")
+        except Exception:
+            pass
+
+    def _selected_file_path(self):
+        sel = self.files_tree.selection()
+        if not sel:
+            return ""
+        item = self.files_tree.item(sel[0])
+        vals = item.get("values") or []
+        if not vals:
+            return ""
+        name = vals[0]
+        folder = vals[2] if len(vals) > 2 else ""
+        return os.path.join(folder, name)
+
+    def open_selected_file(self):
+        try:
+            fp = self._selected_file_path()
+            if fp:
+                os.startfile(fp)
+        except Exception:
+            pass
+
+    def reveal_selected_file(self):
+        try:
+            fp = self._selected_file_path()
+            if fp:
+                subprocess.Popen(["explorer", "/select,", fp])
+        except Exception:
+            pass
+
+    def clear_saved_files(self):
+        try:
+            self.saved_files = []
+            self.saved_count = 0
+            self.files_saved_var.set("Files saved: 0")
+            self.files_tree.delete(*self.files_tree.get_children())
+        except Exception:
+            pass
 
     def start(self):
         if self.running:
@@ -485,8 +630,18 @@ class SwfDownloaderApp:
         present = any(os.path.exists(c) for c in candidates)
         if present:
             self.proxy_status_var.set("Proxy CA files present — HTTPS decryption enabled")
+            try:
+                self.https_dot.configure(fg="#2e7d32")
+                self.https_text_var.set("HTTPS: trusted")
+            except Exception:
+                pass
         else:
             self.proxy_status_var.set("Proxy CA missing — open http://mitm.it to install")
+            try:
+                self.https_dot.configure(fg="#c62828")
+                self.https_text_var.set("HTTPS: untrusted")
+            except Exception:
+                pass
 
     def update_status(self, text):
         try:
@@ -527,6 +682,73 @@ class SwfDownloaderApp:
                 pass
         except Exception as e:
             self.log_line(str(e))
+
+    def quick_start_proxy(self):
+        try:
+            self.capture_mode.set("proxy")
+            self.proxy_save_all_var.set(True)
+            outdir = self.dir_var.get().strip()
+            if not outdir:
+                self.log_line("Choose a destination folder")
+                return
+            self.start_proxy_only()
+        except Exception as e:
+            self.log_line(str(e))
+
+    def test_filter_dialog(self):
+        try:
+            win = tk.Toplevel(self.root)
+            win.title("Test Filter")
+            ttk.Label(win, text="URL").grid(row=0, column=0, sticky="w")
+            url_v = tk.StringVar()
+            ttk.Entry(win, textvariable=url_v, width=60).grid(row=0, column=1, columnspan=3, sticky="ew")
+            ttk.Label(win, text="Content-Type").grid(row=1, column=0, sticky="w")
+            ct_v = tk.StringVar()
+            ttk.Entry(win, textvariable=ct_v, width=40).grid(row=1, column=1, sticky="w")
+            ttk.Label(win, text="Content-Disposition").grid(row=2, column=0, sticky="w")
+            cd_v = tk.StringVar()
+            ttk.Entry(win, textvariable=cd_v, width=40).grid(row=2, column=1, sticky="w")
+            res_var = tk.StringVar(value="")
+            ttk.Label(win, textvariable=res_var).grid(row=3, column=0, columnspan=4, sticky="w")
+            def do_test():
+                ok = self._evaluate_filters(url_v.get(), ct_v.get(), cd_v.get())
+                res_var.set("Would capture" if ok else "Would skip")
+            ttk.Button(win, text="Test", command=do_test).grid(row=4, column=0, padx=4, pady=6, sticky="w")
+            win.columnconfigure(1, weight=1)
+        except Exception:
+            pass
+
+    def _evaluate_filters(self, url, ct, cd):
+        try:
+            if self.proxy_save_all_var.get():
+                return True
+            url_l = (url or "").lower()
+            cd_l = (cd or "").lower()
+            ct_l = (ct or "").lower()
+            includes = [x.strip().lower() for x in (self.includes_var.get() or "").split(',') if x.strip()]
+            excludes = [x.strip().lower() for x in (self.excludes_var.get() or "").split(',') if x.strip()]
+            ct_includes = [x.strip().lower() for x in (self.ct_includes_var.get() or "").split(',') if x.strip()]
+            if includes:
+                inc_hit = False
+                for tok in includes:
+                    if tok == "*":
+                        inc_hit = True
+                        break
+                    if tok and (tok in url_l or tok in cd_l):
+                        inc_hit = True
+                        break
+                if not inc_hit:
+                    return False
+            if ct_includes:
+                if not any(t in ct_l for t in ct_includes):
+                    return False
+            if excludes:
+                for tok in excludes:
+                    if tok and (tok in url_l or tok in ct_l or tok in cd_l):
+                        return False
+            return True
+        except Exception:
+            return False
 
     def _run_capture(self, url, outdir, use_edge, domain_only, host_includes, host_excludes, includes, excludes, ct_includes, mirror, ruffle_enable, ruffle_path, edge_exe, ruffle_verify, ruffle_require):
         asyncio.run(self._capture_async(url, outdir, use_edge, domain_only, host_includes, host_excludes, includes, excludes, ct_includes, mirror, ruffle_enable, ruffle_path, edge_exe, ruffle_verify, ruffle_require))
